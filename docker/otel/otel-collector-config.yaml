@@ -1,0 +1,42 @@
+# OpenTelemetry Collector configuration (ShopFlow training demo)
+# Pipeline: services (OTel Java agent) --OTLP--> collector --> Zipkin   (traces)
+#                                                    └──--> :8889 Prometheus format (metrics)
+receivers:
+  otlp:
+    protocols:
+      grpc:   # default port 4317
+        endpoint: 0.0.0.0:4317
+      http:   # default port 4318 (used by the Java agent: http/protobuf)
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Batch spans before export to reduce the number of outgoing requests
+  batch:
+
+exporters:
+  # Zipkin: trace backend for the training demo (UI on http://localhost:9411)
+  zipkin:
+    endpoint: http://zipkin:9411/api/v2/spans
+  # Prometheus exporter: re-serves the received OTLP metrics in Prometheus
+  # exposition format on port 8889. Demo: `curl localhost:8889/metrics`
+  # (port is published in docker-compose.yml). In production a Prometheus
+  # server would scrape this endpoint.
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  # Print incoming spans in collector logs - handy for teaching/demos
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [zipkin, debug]
+    # Metrics pipeline: the Java agent exports OTLP metrics (docker-compose.yml
+    # sets OTEL_METRICS_EXPORTER=otlp); the collector converts them to the
+    # Prometheus format on :8889. Same collector, second signal.
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]

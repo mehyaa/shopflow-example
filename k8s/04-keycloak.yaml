@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: shopflow
+data:
+  shopflow-realm.json: |
+    {
+      "realm": "shopflow",
+      "displayName": "ShopFlow",
+      "enabled": true,
+      "sslRequired": "external",
+      "registrationAllowed": false,
+      "loginWithEmailAllowed": true,
+      "roles": {
+        "realm": [
+          {"name": "customer", "description": "ShopFlow customer role", "composite": false},
+          {"name": "admin", "description": "ShopFlow admin role", "composite": false}
+        ]
+      },
+      "groups": [],
+      "clients": [
+        {
+          "realm": "shopflow",
+          "clientId": "shopflow-gateway",
+          "name": "ShopFlow Gateway",
+          "description": "Public browser client used by the API gateway / SPA (PKCE)",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": true,
+          "bearerOnly": false,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": false,
+          "fullScopeAllowed": true,
+          "attributes": {
+            "pkce.code.challenge.method": "S256",
+            "post.logout.redirect.uris": "http://localhost:8080/*##http://localhost:3000/*"
+          },
+          "redirectUris": ["http://localhost:8080/*", "http://localhost:3000/*"],
+          "webOrigins": ["+"],
+          "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+          "optionalClientScopes": ["address", "phone", "offline_access"]
+        },
+        {
+          "realm": "shopflow",
+          "clientId": "shopflow-backend",
+          "name": "ShopFlow Backend",
+          "description": "Confidential client for service-to-service (client credentials) demos",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "bearerOnly": false,
+          "standardFlowEnabled": false,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": true,
+          "fullScopeAllowed": true,
+          "secret": "shopflow-backend-secret",
+          "attributes": {"client_credentials.use_refresh_token": "false"},
+          "redirectUris": [],
+          "webOrigins": [],
+          "defaultClientScopes": ["profile", "roles", "email"],
+          "optionalClientScopes": []
+        }
+      ],
+      "users": [
+        {
+          "realm": "shopflow",
+          "username": "alice",
+          "enabled": true,
+          "email": "alice@shopflow.local",
+          "emailVerified": true,
+          "firstName": "Alice",
+          "lastName": "Customer",
+          "credentials": [{"type": "password", "value": "customer123", "temporary": false}],
+          "realmRoles": ["customer"]
+        },
+        {
+          "realm": "shopflow",
+          "username": "bob",
+          "enabled": true,
+          "email": "bob@shopflow.local",
+          "emailVerified": true,
+          "firstName": "Bob",
+          "lastName": "Admin",
+          "credentials": [{"type": "password", "value": "admin123", "temporary": false}],
+          "realmRoles": ["admin"]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: shopflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:25.0
+          imagePullPolicy: IfNotPresent
+          args: ["start-dev", "--import-realm"]
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: admin
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9000
+            initialDelaySeconds: 40
+            periodSeconds: 15
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: shopflow
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - port: 8080
+      targetPort: 8080

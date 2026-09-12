@@ -1,0 +1,65 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: order-service
+  config:
+    import: optional:configserver:http://localhost:8888
+  datasource:
+    # stringtype=unspecified lets Hibernate bind the JSON payload string into the jsonb column
+    url: jdbc:postgresql://localhost:5432/orders?stringtype=unspecified
+    username: shopflow
+    password: shopflow
+  jpa:
+    hibernate:
+      ddl-auto: update
+  rabbitmq:
+    host: localhost
+    port: 5672
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers
+  endpoint:
+    health:
+      show-details: always
+
+# Day 4: Resilience4j instances used by PaymentInvoker (circuit breaker around
+# payment-service; retry for transient errors)
+resilience4j:
+  circuitbreaker:
+    instances:
+      payment:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    instances:
+      payment:
+        max-attempts: 3
+        wait-duration: 500ms
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgres:5432/orders?stringtype=unspecified
+  rabbitmq:
+    host: rabbitmq
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-server:8761/eureka/

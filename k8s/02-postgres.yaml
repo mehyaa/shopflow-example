@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: shopflow
+data:
+  init.sql: |
+    CREATE DATABASE products;
+    CREATE DATABASE inventory;
+    CREATE DATABASE orders;
+    CREATE DATABASE payments;
+    GRANT ALL PRIVILEGES ON DATABASE products TO shopflow;
+    GRANT ALL PRIVILEGES ON DATABASE inventory TO shopflow;
+    GRANT ALL PRIVILEGES ON DATABASE orders TO shopflow;
+    GRANT ALL PRIVILEGES ON DATABASE payments TO shopflow;
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: shopflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: shopflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              value: shopflow
+            - name: POSTGRES_PASSWORD
+              value: shopflow
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "shopflow"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "shopflow"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+        - name: init
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: shopflow
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

@@ -1,0 +1,428 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shopflow-postgres
+    environment:
+      POSTGRES_USER: shopflow
+      POSTGRES_PASSWORD: shopflow
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: shopflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: shopflow-keycloak
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./docker/keycloak/shopflow-realm.json:/opt/keycloak/data/import/shopflow-realm.json:ro
+    ports:
+      - "8180:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\nHost: localhost\\nConnection: close\\n\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # --- Observability stack (OTel pipeline): agent -> collector -> Zipkin ---
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: shopflow-zipkin
+    environment:
+      # Noise prevention: logspout (ELK profile) skips containers marked LOGSPOUT=ignore.
+      # Infra containers would only flood Elasticsearch with their own chatter.
+      LOGSPOUT: ignore
+    ports:
+      - "9411:9411"   # Zipkin web UI + API
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.110.0
+    container_name: shopflow-otel-collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./docker/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    environment:
+      LOGSPOUT: ignore   # noise prevention (see zipkin above)
+    # 4317 (gRPC) / 4318 (HTTP) stay internal: only services talk to the collector
+    expose:
+      - "4317"
+      - "4318"
+    ports:
+      - "8889:8889"   # Prometheus-format metrics endpoint (demo: curl localhost:8889/metrics)
+    depends_on:
+      - zipkin
+
+  # NOTE: discovery-server and config-server deliberately run WITHOUT the OTel agent
+  # (no JAVA_TOOL_OPTIONS below). They are infrastructure; tracing them only adds
+  # startup/health-check noise to Zipkin during the training demos.
+
+  discovery-server:
+    build:
+      context: .
+      dockerfile: discovery-server/Dockerfile
+    image: shopflow/discovery-server:1.0.0
+    container_name: shopflow-discovery
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8761/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  config-server:
+    build:
+      context: .
+      dockerfile: config-server/Dockerfile
+    image: shopflow/config-server:1.0.0
+    container_name: shopflow-config
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: "optional:configserver:"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      SPRING_RABBITMQ_HOST: rabbitmq
+    ports:
+      - "8888:8888"
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8888/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    image: shopflow/api-gateway:1.0.0
+    container_name: shopflow-gateway
+    environment:
+      # "docker,elk": the elk profile activates JSON logging (logback-spring.xml);
+      # harmless when the ELK compose profile is not enabled
+      SPRING_PROFILES_ACTIVE: docker,elk
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "api-gateway"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "none"
+      OTEL_PROPAGATORS: "tracecontext,baggage"
+    volumes:
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  product-service:
+    build:
+      context: .
+      dockerfile: product-service/Dockerfile
+    image: shopflow/product-service:1.0.0
+    container_name: shopflow-product
+    environment:
+      # "docker,elk": the elk profile activates JSON logging (logback-spring.xml);
+      # harmless when the ELK compose profile is not enabled
+      SPRING_PROFILES_ACTIVE: docker,elk
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/products
+      SPRING_DATASOURCE_USERNAME: shopflow
+      SPRING_DATASOURCE_PASSWORD: shopflow
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "product-service"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "none"
+      OTEL_PROPAGATORS: "tracecontext,baggage"
+    volumes:
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: inventory-service/Dockerfile
+    image: shopflow/inventory-service:1.0.0
+    container_name: shopflow-inventory
+    environment:
+      # "docker,elk": the elk profile activates JSON logging (logback-spring.xml);
+      # harmless when the ELK compose profile is not enabled
+      SPRING_PROFILES_ACTIVE: docker,elk
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/inventory
+      SPRING_DATASOURCE_USERNAME: shopflow
+      SPRING_DATASOURCE_PASSWORD: shopflow
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "inventory-service"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "none"
+      OTEL_PROPAGATORS: "tracecontext,baggage"
+    volumes:
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    image: shopflow/order-service:1.0.0
+    container_name: shopflow-order
+    environment:
+      # "docker,elk": the elk profile activates JSON logging (logback-spring.xml);
+      # harmless when the ELK compose profile is not enabled
+      SPRING_PROFILES_ACTIVE: docker,elk
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orders
+      SPRING_DATASOURCE_USERNAME: shopflow
+      SPRING_DATASOURCE_PASSWORD: shopflow
+      SPRING_RABBITMQ_HOST: rabbitmq
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "order-service"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "none"
+      OTEL_PROPAGATORS: "tracecontext,baggage"
+    volumes:
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8083/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    image: shopflow/payment-service:1.0.0
+    container_name: shopflow-payment
+    environment:
+      # "docker,elk": the elk profile activates JSON logging (logback-spring.xml);
+      # harmless when the ELK compose profile is not enabled
+      SPRING_PROFILES_ACTIVE: docker,elk
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payments
+      SPRING_DATASOURCE_USERNAME: shopflow
+      SPRING_DATASOURCE_PASSWORD: shopflow
+      SPRING_RABBITMQ_HOST: rabbitmq
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "payment-service"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "none"
+      OTEL_PROPAGATORS: "tracecontext,baggage"
+    volumes:
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8084/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    image: shopflow/notification-service:1.0.0
+    container_name: shopflow-notification
+    environment:
+      # "docker,elk": the elk profile activates JSON logging (logback-spring.xml);
+      # harmless when the ELK compose profile is not enabled
+      SPRING_PROFILES_ACTIVE: docker,elk
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
+      SPRING_RABBITMQ_HOST: rabbitmq
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "notification-service"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "otlp"
+      OTEL_LOGS_EXPORTER: "none"
+      OTEL_PROPAGATORS: "tracecontext,baggage"
+    volumes:
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    ports:
+      - "8085:8085"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8085/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --- ELK stack (optional): start with `docker compose --profile elk up -d --build` ---
+  # Pipeline: all container stdout -> logspout (UDP) -> logstash -> elasticsearch,
+  # browsable in Kibana (http://localhost:5601, index pattern shopflow-logs-*).
+  # WARNING: ELK adds ~3 GB RAM usage on top of the base stack (heap capped below).
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.2
+    profiles: ["elk"]
+    container_name: shopflow-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      LOGSPOUT: ignore   # noise prevention: ES logs out of the log pipeline
+    ports:
+      - "9200:9200"
+    healthcheck:
+      # ES 8.x image ships curl; cluster health endpoint only answers when the node is up
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.2
+    profiles: ["elk"]
+    container_name: shopflow-logstash
+    environment:
+      ES_JAVA_OPTS: "-Xms256m -Xmx256m"
+      LOGSPOUT: ignore   # noise prevention
+    volumes:
+      - ./docker/elk/logstash/pipeline.conf:/usr/share/logstash/pipeline/pipeline.conf:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.2
+    profiles: ["elk"]
+    container_name: shopflow-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      LOGSPOUT: ignore   # noise prevention
+    ports:
+      - "5601:5601"   # Kibana UI
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  logspout:
+    image: gliderlabs/logspout:v3.2.14
+    profiles: ["elk"]
+    container_name: shopflow-logspout
+    # Streams every container's stdout/stderr to logstash over UDP
+    command: udp://logstash:5000
+    environment:
+      LOGSPOUT: ignore   # must ignore itself, otherwise it ships its own logs forever (loop)
+    volumes:
+      # Read-only socket access: logspout only inspects/streams, it never talks back
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - logstash
+
+volumes:
+  pgdata:
