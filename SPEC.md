@@ -105,7 +105,8 @@ A `@Scheduled(fixedDelay=500)` poller publishes `NEW` rows and marks them `SENT`
 - Keycloak realm: `shopflow` · client: `shopflow-gateway` (public, PKCE) · client credentials client: `shopflow-backend` (confidential, for the service-to-service demo)
 - Roles: `customer`, `admin`
 - Gateway: JWT validation against Keycloak JWKS (issuer-uri configuration)
-- product/inventory/order: `spring-boot-starter-oauth2-resource-server`; product write operations require `hasRole("admin")`
+- product-service: `spring-boot-starter-oauth2-resource-server`; product write operations require `hasRole("admin")`
+- **Deliberate deviation:** inventory and order do NOT enforce JWT. The saga's Feign calls (order → inventory, order → payment) carry no token; adding a resource server there would 401 the saga. JWT enforcement is demonstrated on the gateway + product-service pair, which is enough for the Day 5 demo. The gateway forwards the `Authorization` header; inventory/order simply ignore it.
 - Test users: `alice/customer123` (customer), `bob/admin123` (admin) — realm import file: [docker/keycloak/shopflow-realm.json](docker/keycloak/shopflow-realm.json)
 
 ## 8. Configuration
@@ -118,7 +119,8 @@ A `@Scheduled(fixedDelay=500)` poller publishes `NEW` rows and marks them `SENT`
 
 - A `Dockerfile` per service (multi-stage: maven build → temurin jre runtime).
 - `docker-compose.yml`: postgres, rabbitmq, keycloak + 8 services. One command: `docker compose up -d --build`.
-- `k8s/`: Deployment + Service per service (+ ConfigMap for ConfigServer and its configs); basic manifests for Keycloak/Postgres/RabbitMQ as well. Minikube `addons enable ingress` is not required (Gateway is exposed via NodePort).
+- `k8s/`: Deployment + Service per service; basic manifests for Keycloak/Postgres/RabbitMQ as well. The config-server's `classpath:/configs` files are **baked into the image** at build time — no extra ConfigMap is needed (native profile reads from the classpath). Minikube `addons enable ingress` is not required (Gateway is exposed via NodePort).
+- JWT in k8s: tokens are fetched via `kubectl port-forward svc/keycloak 8180:8080`; the gateway/product deployments pin `issuer-uri=http://localhost:8180/...` + internal `jwk-set-uri` env overrides (see `k8s/07` and `k8s/08`).
 
 ## 10. Code Standards
 
