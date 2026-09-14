@@ -1,0 +1,11 @@
+.git
+.idea
+*.iml
+**/target
+docker/otel/opentelemetry-javaagent.jar
+docker-compose.yml
+k8s
+scripts
+README.md
+SPEC.md
+LICENSE
