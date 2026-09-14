@@ -34,10 +34,19 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
     container_name: shopflow-keycloak
-    command: start-dev --import-realm
+    # --health-enabled=true: the healthcheck (and k8s probes) need the health
+    # endpoints on the management port 9000; without it the container is never "healthy"
+    command: start-dev --import-realm --health-enabled=true
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      # Fix the token issuer to the external (host) URL: tokens always carry
+      # iss=http://localhost:8180/realms/shopflow, matching issuer-uri in the
+      # gateway/product docker profiles. Resource servers fetch JWKS via the
+      # internal network name (jwk-set-uri), so the mismatch cannot bite.
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: "8180"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
     volumes:
       - ./docker/keycloak/shopflow-realm.json:/opt/keycloak/data/import/shopflow-realm.json:ro
     ports:
@@ -104,8 +113,9 @@ services:
     image: shopflow/config-server:1.0.0
     container_name: shopflow-config
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_CONFIG_IMPORT: "optional:configserver:"
+      # "native" must be listed here: SPRING_PROFILES_ACTIVE overrides the value in
+      # application.yml, and without it the config-server falls back to the git backend
+      SPRING_PROFILES_ACTIVE: docker,native
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
       SPRING_RABBITMQ_HOST: rabbitmq
     ports:
@@ -250,7 +260,9 @@ services:
       SPRING_PROFILES_ACTIVE: docker,elk
       SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orders
+      # stringtype=unspecified is REQUIRED: the outbox payload column is jsonb;
+      # without it the saga/outbox insert fails (must match the docker profile yml)
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/orders?stringtype=unspecified"
       SPRING_DATASOURCE_USERNAME: shopflow
       SPRING_DATASOURCE_PASSWORD: shopflow
       SPRING_RABBITMQ_HOST: rabbitmq
