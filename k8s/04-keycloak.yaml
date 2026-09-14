@@ -21,7 +21,6 @@ data:
       "groups": [],
       "clients": [
         {
-          "realm": "shopflow",
           "clientId": "shopflow-gateway",
           "name": "ShopFlow Gateway",
           "description": "Public browser client used by the API gateway / SPA (PKCE)",
@@ -44,7 +43,6 @@ data:
           "optionalClientScopes": ["address", "phone", "offline_access"]
         },
         {
-          "realm": "shopflow",
           "clientId": "shopflow-backend",
           "name": "ShopFlow Backend",
           "description": "Confidential client for service-to-service (client credentials) demos",
@@ -67,7 +65,6 @@ data:
       ],
       "users": [
         {
-          "realm": "shopflow",
           "username": "alice",
           "enabled": true,
           "email": "alice@shopflow.local",
@@ -78,7 +75,6 @@ data:
           "realmRoles": ["customer"]
         },
         {
-          "realm": "shopflow",
           "username": "bob",
           "enabled": true,
           "email": "bob@shopflow.local",
@@ -110,7 +106,9 @@ spec:
         - name: keycloak
           image: quay.io/keycloak/keycloak:25.0
           imagePullPolicy: IfNotPresent
-          args: ["start-dev", "--import-realm"]
+          # --health-enabled=true: the readiness/liveness probes below need the
+          # health endpoints on the management port 9000
+          args: ["start-dev", "--import-realm", "--health-enabled=true"]
           env:
             - name: KEYCLOAK_ADMIN
               value: admin

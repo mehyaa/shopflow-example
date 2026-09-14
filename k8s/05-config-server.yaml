@@ -18,10 +18,9 @@ spec:
           image: shopflow/config-server:1.0.0
           imagePullPolicy: IfNotPresent
           env:
+            # "native" must be included: SPRING_PROFILES_ACTIVE overrides application.yml
             - name: SPRING_PROFILES_ACTIVE
-              value: docker
-            - name: SPRING_CONFIG_IMPORT
-              value: "optional:configserver:"
+              value: docker,native
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://discovery-server:8761/eureka
             - name: SPRING_RABBITMQ_HOST

@@ -24,6 +24,13 @@ spec:
               value: optional:configserver:http://config-server:8888
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://discovery-server:8761/eureka
+            # Tokens must be fetched via `kubectl port-forward svc/keycloak 8180:8080`
+            # (Keycloak has no KC_HOSTNAME in k8s → iss follows the request URL).
+            # JWKS is fetched directly via the in-cluster service name.
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+              value: http://localhost:8180/realms/shopflow
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+              value: http://keycloak:8080/realms/shopflow/protocol/openid-connect/certs
           ports:
             - containerPort: 8080
           readinessProbe:

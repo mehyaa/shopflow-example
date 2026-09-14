@@ -26,6 +26,12 @@ spec:
               value: optional:configserver:http://config-server:8888
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://discovery-server:8761/eureka
+            # Tokens are fetched via `kubectl port-forward svc/keycloak 8180:8080`;
+            # iss follows the request URL, JWKS via the in-cluster service name.
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+              value: http://localhost:8180/realms/shopflow
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+              value: http://keycloak:8080/realms/shopflow/protocol/openid-connect/certs
             - name: SPRING_DATASOURCE_URL
               value: jdbc:postgresql://postgres:5432/products
             - name: SPRING_DATASOURCE_USERNAME
@@ -145,7 +151,7 @@ spec:
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: http://discovery-server:8761/eureka
             - name: SPRING_DATASOURCE_URL
-              value: jdbc:postgresql://postgres:5432/orders
+              value: jdbc:postgresql://postgres:5432/orders?stringtype=unspecified
             - name: SPRING_DATASOURCE_USERNAME
               value: shopflow
             - name: SPRING_DATASOURCE_PASSWORD
