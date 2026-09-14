@@ -2,17 +2,16 @@ eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
-
+  instance:
+    prefer-ip-address: true
 spring:
   jpa:
     open-in-view: false
-
 management:
   endpoints:
     web:
       exposure:
         include: health,info,refresh,busrefresh
-
 ---
 spring:
   config:
@@ -22,3 +21,5 @@ eureka:
   client:
     service-url:
       defaultZone: http://discovery-server:8761/eureka/
+  instance:
+    prefer-ip-address: true

@@ -1,6 +1,5 @@
 server:
   port: 8081
-
 spring:
   application:
     name: product-service
@@ -17,14 +16,11 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # Day 5: Keycloak issuer for the shopflow realm
           issuer-uri: http://localhost:8180/realms/shopflow
-
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
-
 management:
   endpoints:
     web:
@@ -33,7 +29,6 @@ management:
   endpoint:
     health:
       show-details: always
-
 ---
 spring:
   config:
@@ -45,12 +40,11 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # Matches the issuer Keycloak stamps into tokens in compose
-          # (KC_HOSTNAME=localhost + port 8180); JWKS via the internal name.
           issuer-uri: http://localhost:8180/realms/shopflow
           jwk-set-uri: http://keycloak:8080/realms/shopflow/protocol/openid-connect/certs
-
 eureka:
   client:
     service-url:
       defaultZone: http://discovery-server:8761/eureka/
+  instance:
+    prefer-ip-address: true
