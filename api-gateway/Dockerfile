@@ -1,16 +1,11 @@
+# Day 6: multi-stage build — build context is the shopflow/ project root
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
-
-COPY pom.xml /workspace/pom.xml
-COPY common-events /workspace/common-events
-COPY discovery-server /workspace/discovery-server
-COPY config-server /workspace/config-server
-COPY api-gateway /workspace/api-gateway
-
-RUN mvn -q -pl api-gateway -am -DskipTests package
+COPY . .
+RUN mvn -B -pl api-gateway -am -DskipTests package
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build /workspace/api-gateway/target/api-gateway-1.0.0.jar app.jar
+COPY --from=build /workspace/api-gateway/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

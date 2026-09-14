@@ -51,7 +51,11 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://keycloak:8080/realms/shopflow
+          # Tokens are issued against the external (host) URL — Keycloak in compose
+          # pins KC_HOSTNAME=localhost + port 8180, so iss always matches this value.
+          # JWKS is fetched via the internal network name instead.
+          issuer-uri: http://localhost:8180/realms/shopflow
+          jwk-set-uri: http://keycloak:8080/realms/shopflow/protocol/openid-connect/certs
 eureka:
   client:
     service-url:
