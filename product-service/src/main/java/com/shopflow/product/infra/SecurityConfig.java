@@ -40,8 +40,14 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder(
+            @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}") String jwkSetUri,
             @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:http://localhost:8180/realms/shopflow}") String issuerUri) {
-        return NimbusJwtDecoder.withJwkSetUri(issuerUri + "/protocol/openid-connect/certs").build();
+        // docker/k8s run in a network where Keycloak's external hostname (localhost:8180)
+        // is not reachable; the jwk-set-uri override points at the internal service name
+        String uri = !jwkSetUri.isBlank()
+                ? jwkSetUri
+                : issuerUri + "/protocol/openid-connect/certs";
+        return NimbusJwtDecoder.withJwkSetUri(uri).build();
     }
 
     // Day 5: map Keycloak realm roles (realm_access.roles) to Spring ROLE_ authorities
