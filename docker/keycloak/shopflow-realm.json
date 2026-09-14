@@ -22,7 +22,6 @@
   "groups": [],
   "clients": [
     {
-      "realm": "shopflow",
       "clientId": "shopflow-gateway",
       "name": "ShopFlow Gateway",
       "description": "Public browser client used by the API gateway / SPA (PKCE)",
@@ -60,7 +59,6 @@
       ]
     },
     {
-      "realm": "shopflow",
       "clientId": "shopflow-backend",
       "name": "ShopFlow Backend",
       "description": "Confidential client for service-to-service (client credentials) demos",
@@ -89,7 +87,6 @@
   ],
   "users": [
     {
-      "realm": "shopflow",
       "username": "alice",
       "enabled": true,
       "email": "alice@shopflow.local",
@@ -108,7 +105,6 @@
       ]
     },
     {
-      "realm": "shopflow",
       "username": "bob",
       "enabled": true,
       "email": "bob@shopflow.local",
