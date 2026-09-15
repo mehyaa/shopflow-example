@@ -104,7 +104,7 @@ spec:
     spec:
       containers:
         - name: keycloak
-          image: quay.io/keycloak/keycloak:25.0
+          image: quay.io/keycloak/keycloak:26.7.3
           imagePullPolicy: IfNotPresent
           # --health-enabled=true: the readiness/liveness probes below need the
           # health endpoints on the management port 9000

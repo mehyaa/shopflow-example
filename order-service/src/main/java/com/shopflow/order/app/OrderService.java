@@ -1,7 +1,7 @@
 package com.shopflow.order.app;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.shopflow.common.events.OrderCancelledEvent;
 import com.shopflow.common.events.OrderConfirmedEvent;
 import com.shopflow.common.events.OrderCreatedEvent;
@@ -163,7 +163,7 @@ public class OrderService {
     private void appendOutbox(Order order, String type, Object event) {
         try {
             outboxRepository.save(new OutboxMessage(order.getId(), type, objectMapper.writeValueAsString(event)));
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalStateException("Could not serialize outbox payload for order " + order.getId(), ex);
         }
     }

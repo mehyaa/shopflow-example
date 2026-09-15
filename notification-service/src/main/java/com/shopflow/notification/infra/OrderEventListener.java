@@ -1,6 +1,6 @@
 package com.shopflow.notification.infra;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.shopflow.common.events.EventTopics;
 import com.shopflow.common.events.OrderCancelledEvent;
 import com.shopflow.common.events.OrderConfirmedEvent;

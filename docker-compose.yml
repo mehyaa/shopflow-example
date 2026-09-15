@@ -1,15 +1,15 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: shopflow-postgres
     environment:
       POSTGRES_USER: shopflow
       POSTGRES_PASSWORD: shopflow
     volumes:
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:z
+      - pgdata:/var/lib/postgresql
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shopflow"]
       interval: 10s
@@ -17,8 +17,12 @@ services:
       retries: 5
 
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:4-management
     container_name: shopflow-rabbitmq
+    # Run as the image's rabbitmq user (uid 999). Under rootless Podman the
+    # entrypoint otherwise stays root and the auto-generated .erlang.cookie
+    # becomes unreadable to the Erlang runtime (eacces crash on startup).
+    user: "999:999"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -32,14 +36,14 @@ services:
       retries: 5
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0
+    image: quay.io/keycloak/keycloak:26.7.3
     container_name: shopflow-keycloak
     # --health-enabled=true: the healthcheck (and k8s probes) need the health
     # endpoints on the management port 9000; without it the container is never "healthy"
     command: start-dev --import-realm --health-enabled=true
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       # Fix the token issuer to the external (host) URL: tokens always carry
       # iss=http://localhost:8180/realms/shopflow, matching issuer-uri in the
       # gateway/product docker profiles. Resource servers fetch JWKS via the
@@ -48,11 +52,13 @@ services:
       KC_HOSTNAME_PORT: "8180"
       KC_HOSTNAME_STRICT_HTTPS: "false"
     volumes:
-      - ./docker/keycloak/shopflow-realm.json:/opt/keycloak/data/import/shopflow-realm.json:ro
+      - ./docker/keycloak/shopflow-realm.json:/opt/keycloak/data/import/shopflow-realm.json:z
     ports:
       - "8180:8080"
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\nHost: localhost\\nConnection: close\\n\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      # Keycloak 26 (Quarkus) rejects LF-only HTTP/1.1 requests: the probe must
+      # send proper CRLF line endings or the healthcheck never turns healthy.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -62,6 +68,9 @@ services:
     image: openzipkin/zipkin:3
     container_name: shopflow-zipkin
     environment:
+      # Small fixed heap: on memory-constrained hosts (many containers, cgroup
+      # limits) the default ergonomics can OOM the JVM shortly after startup.
+      JAVA_OPTS: "-Xms128m -Xmx512m"
       # Noise prevention: logspout (ELK profile) skips containers marked LOGSPOUT=ignore.
       # Infra containers would only flood Elasticsearch with their own chatter.
       LOGSPOUT: ignore
@@ -69,11 +78,11 @@ services:
       - "9411:9411"   # Zipkin web UI + API
 
   otel-collector:
-    image: otel/opentelemetry-collector:0.110.0
+    image: otel/opentelemetry-collector:0.160.0
     container_name: shopflow-otel-collector
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./docker/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+      - ./docker/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml:z
     environment:
       LOGSPOUT: ignore   # noise prevention (see zipkin above)
     # 4317 (gRPC) / 4318 (HTTP) stay internal: only services talk to the collector
@@ -152,7 +161,7 @@ services:
       OTEL_LOGS_EXPORTER: "none"
       OTEL_PROPAGATORS: "tracecontext,baggage"
     volumes:
-      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:z
     ports:
       - "8080:8080"
     depends_on:
@@ -192,7 +201,7 @@ services:
       OTEL_LOGS_EXPORTER: "none"
       OTEL_PROPAGATORS: "tracecontext,baggage"
     volumes:
-      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:z
     ports:
       - "8081:8081"
     depends_on:
@@ -232,7 +241,7 @@ services:
       OTEL_LOGS_EXPORTER: "none"
       OTEL_PROPAGATORS: "tracecontext,baggage"
     volumes:
-      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:z
     ports:
       - "8082:8082"
     depends_on:
@@ -275,7 +284,7 @@ services:
       OTEL_LOGS_EXPORTER: "none"
       OTEL_PROPAGATORS: "tracecontext,baggage"
     volumes:
-      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:z
     ports:
       - "8083:8083"
     depends_on:
@@ -318,7 +327,7 @@ services:
       OTEL_LOGS_EXPORTER: "none"
       OTEL_PROPAGATORS: "tracecontext,baggage"
     volumes:
-      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:z
     ports:
       - "8084:8084"
     depends_on:
@@ -358,7 +367,7 @@ services:
       OTEL_LOGS_EXPORTER: "none"
       OTEL_PROPAGATORS: "tracecontext,baggage"
     volumes:
-      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+      - ./docker/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:z
     ports:
       - "8085:8085"
     depends_on:
@@ -379,7 +388,7 @@ services:
   # browsable in Kibana (http://localhost:5601, index pattern shopflow-logs-*).
   # WARNING: ELK adds ~3 GB RAM usage on top of the base stack (heap capped below).
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.2
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.6
     profiles: ["elk"]
     container_name: shopflow-elasticsearch
     environment:
@@ -397,20 +406,20 @@ services:
       retries: 10
 
   logstash:
-    image: docker.elastic.co/logstash/logstash:8.15.2
+    image: docker.elastic.co/logstash/logstash:9.4.6
     profiles: ["elk"]
     container_name: shopflow-logstash
     environment:
       ES_JAVA_OPTS: "-Xms256m -Xmx256m"
       LOGSPOUT: ignore   # noise prevention
     volumes:
-      - ./docker/elk/logstash/pipeline.conf:/usr/share/logstash/pipeline/pipeline.conf:ro
+      - ./docker/elk/logstash/pipeline.conf:/usr/share/logstash/pipeline/pipeline.conf:z
     depends_on:
       elasticsearch:
         condition: service_healthy
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.15.2
+    image: docker.elastic.co/kibana/kibana:9.4.6
     profiles: ["elk"]
     container_name: shopflow-kibana
     environment:

@@ -21,7 +21,7 @@ if [ ! -f "$AGENT_JAR" ]; then
   echo "OTel agent not found, downloading..."
   mkdir -p "$(dirname "$AGENT_JAR")"
   curl -fSL -o "$AGENT_JAR" \
-    "https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/2.10.0/opentelemetry-javaagent-2.10.0.jar"
+    "https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/2.31.1/opentelemetry-javaagent-2.31.1.jar"
 fi
 
 # Default: export straight to local Zipkin (no collector needed for a quick demo).
