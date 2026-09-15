@@ -2,13 +2,13 @@
 
 > **Example / reference project** from a Spring Boot microservices training course — not production software.
 
-ShopFlow is an end-to-end e-commerce microservices platform built with Java 21, Spring Boot 3.3, and Spring Cloud 2023.0.3: eight services, an orchestrated saga with compensation, a transactional outbox, JWT security via Keycloak, and a full OpenTelemetry observability pipeline.
+ShopFlow is an end-to-end e-commerce microservices platform built with Java 21, Spring Boot 4.1, and Spring Cloud 2025.1.3: eight services, an orchestrated saga with compensation, a transactional outbox, JWT security via Keycloak, and a full OpenTelemetry observability pipeline.
 
 The architectural contract (services, ports, REST API, events, saga flow) lives in [**SPEC.md**](SPEC.md) — it is the single source of truth for the codebase.
 
 ## Tech Stack
 
-Java 21 · Spring Boot 3.3.5 · Spring Cloud 2023.0.3 · PostgreSQL 16 · RabbitMQ 3.13 · Keycloak 25 · Docker · Kubernetes (Minikube)
+Java 21 · Spring Boot 4.1.1 · Spring Cloud 2025.1.3 · PostgreSQL 18 · RabbitMQ 4.3 · Keycloak 26.7 · Docker · Kubernetes (Minikube)
 
 ## Modules
 
@@ -71,8 +71,8 @@ curl -X POST http://localhost:8080/api/orders \
 ```bash
 # 1) infrastructure
 docker run -d --name shopflow-pg -e POSTGRES_USER=shopflow -e POSTGRES_PASSWORD=shopflow \
-  -e POSTGRES_MULTIPLE_DATABASES... (see docker/postgres/init.sql) -p 5432:5432 postgres:16-alpine
-docker run -d --name shopflow-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management
+  -e POSTGRES_MULTIPLE_DATABASES... (see docker/postgres/init.sql) -p 5432:5432 postgres:18-alpine
+docker run -d --name shopflow-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4-management
 
 # 2) platform
 ./mvnw spring-boot:run -pl discovery-server
@@ -92,7 +92,7 @@ docker run -d --name shopflow-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3.13-m
 ## Observability (OTel)
 
 Services started via compose are auto-instrumented with the **OpenTelemetry Java agent**
-(2.10.0): agent → OTLP → `otel-collector` (0.110.0) → Zipkin (3). Architecture and
+(2.31.1): agent → OTLP → `otel-collector` (0.160.0) → Zipkin (3). Architecture and
 contract: [SPEC.md §11](SPEC.md#11-observability--otel-pipeline).
 
 - Nothing extra needed in compose — `zipkin` and `otel-collector` start automatically;

@@ -9,11 +9,11 @@ This file is the **single source of truth** for the example project. Every servi
 | Component | Version | Note |
 |---|---|---|
 | Java | 21 | Base image: `eclipse-temurin:21-jre-alpine` |
-| Spring Boot | 3.3.x | Parent: `spring-boot-starter-parent:3.3.5` |
-| Spring Cloud | 2023.0.3 | Eureka, Gateway, Config, OpenFeign, CircuitBreaker, Bus |
-| PostgreSQL | 16-alpine | product, inventory, order, payment |
-| RabbitMQ | 3.13-management | Messaging |
-| Keycloak | 25.0 | OAuth2 / OIDC provider |
+| Spring Boot | 4.1.x | Parent: `spring-boot-starter-parent:4.1.1` |
+| Spring Cloud | 2025.1.3 | Eureka, Gateway, Config, OpenFeign, CircuitBreaker, Bus |
+| PostgreSQL | 18-alpine | product, inventory, order, payment |
+| RabbitMQ | 4-management (4.3.5) | Messaging |
+| Keycloak | 26.7.3 | OAuth2 / OIDC provider |
 | Kafka | 3.7 (bitnami k8s chart, theoretical) | Discussed in theory only; no code in this repo |
 | Maven | wrapper (mvnw) | `maven-compiler-plugin` release=21 |
 
@@ -105,7 +105,7 @@ A `@Scheduled(fixedDelay=500)` poller publishes `NEW` rows and marks them `SENT`
 - Keycloak realm: `shopflow` · client: `shopflow-gateway` (public, PKCE) · client credentials client: `shopflow-backend` (confidential, for the service-to-service demo)
 - Roles: `customer`, `admin`
 - Gateway: JWT validation against Keycloak JWKS (issuer-uri configuration)
-- product-service: `spring-boot-starter-oauth2-resource-server`; product write operations require `hasRole("admin")`
+- product-service: `spring-boot-starter-security-oauth2-resource-server`; product write operations require `hasRole("admin")`
 - **Deliberate deviation:** inventory and order do NOT enforce JWT. The saga's Feign calls (order → inventory, order → payment) carry no token; adding a resource server there would 401 the saga. JWT enforcement is demonstrated on the gateway + product-service pair, which is enough for the Day 5 demo. The gateway forwards the `Authorization` header; inventory/order simply ignore it.
 - Test users: `alice/customer123` (customer), `bob/admin123` (admin) — realm import file: [docker/keycloak/shopflow-realm.json](docker/keycloak/shopflow-realm.json)
 
@@ -147,8 +147,8 @@ flowchart LR
 
 | Component | Version | Note |
 |---|---|---|
-| OTel Java agent | 2.10.0 | `docker/otel/opentelemetry-javaagent.jar` (no code changes needed) |
-| OTel Collector | 0.110.0 | `docker/otel/otel-collector-config.yaml` (otlp → batch → zipkin + debug) |
+| OTel Java agent | 2.31.1 | `docker/otel/opentelemetry-javaagent.jar` (no code changes needed) |
+| OTel Collector | 0.160.0 | `docker/otel/otel-collector-config.yaml` (otlp → batch → zipkin + debug) |
 | Zipkin | 3 | `openzipkin/zipkin:3` — UI: http://localhost:9411 |
 
 ### 11.2 Which services carry the agent?
@@ -205,13 +205,13 @@ docker compose --profile elk up -d --build
 
 | Service | Role |
 |---|---|
-| `elasticsearch` (8.15.2) | Log store (single-node, security off, heap 512m) |
-| `logstash` (8.15.2) | Receives JSON logs on UDP :5000, writes to the `shopflow-logs-*` index |
-| `kibana` (8.15.2) | UI: http://localhost:5601 (index pattern in Discover: `shopflow-logs-*`) |
+| `elasticsearch` (9.4.6) | Log store (single-node, security off, heap 512m) |
+| `logstash` (9.4.6) | Receives JSON logs on UDP :5000, writes to the `shopflow-logs-*` index |
+| `kibana` (9.4.6) | UI: http://localhost:5601 (index pattern in Discover: `shopflow-logs-*`) |
 | `logspout` (v3.2.14) | Streams all container stdout to logstash over UDP via the Docker socket |
 
 - Infrastructure containers (zipkin, otel-collector, elasticsearch, logstash, kibana) get `LOGSPOUT=ignore` so they do not write their own noise into Elasticsearch. ALL logs of the business services and platform services (discovery/config) are collected.
-- Business services run with `SPRING_PROFILES_ACTIVE: docker,elk`; the `elk` Spring profile activates JSON output (`net.logstash.logback.encoder.LogstashEncoder`, `logstash-logback-encoder:7.4`) in `logback-spring.xml`. Local runs without the profile keep Boot's readable console output.
+- Business services run with `SPRING_PROFILES_ACTIVE: docker,elk`; the `elk` Spring profile activates JSON output (`net.logstash.logback.encoder.LogstashEncoder`, `logstash-logback-encoder:9.0`) in `logback-spring.xml`. Local runs without the profile keep Boot's readable console output.
 - **RAM warning:** the ELK stack adds ~**3 GB** extra memory on top of the base stack (heap limits pinned to 512m/256m in compose). Recommendation: run it only when you have the headroom; Zipkin + the metrics pipeline are enough for a demo.
 
 ### 11.8 Zipkin–OTel compatibility note
