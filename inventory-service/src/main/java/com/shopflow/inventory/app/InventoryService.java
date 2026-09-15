@@ -1,10 +1,13 @@
 package com.shopflow.inventory.app;
 
+import com.shopflow.inventory.domain.InsufficientStockException;
 import com.shopflow.inventory.domain.StockItem;
-import com.shopflow.inventory.infra.StockItemRepository;
+import com.shopflow.inventory.domain.StockItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+// Application service: orchestration only (transaction, repo calls); the stock rule
+// lives in the aggregate — reserve/release go through StockItem.
 @Service
 public class InventoryService {
 
@@ -14,14 +17,14 @@ public class InventoryService {
         this.stockItemRepository = stockItemRepository;
     }
 
-    @Transactional(readOnly = true)
-    public long count() {
-        return stockItemRepository.count();
-    }
-
     @Transactional
     public StockItem create(StockItem item) {
         return stockItemRepository.save(item);
+    }
+
+    @Transactional(readOnly = true)
+    public long count() {
+        return stockItemRepository.count();
     }
 
     @Transactional(readOnly = true)
@@ -29,23 +32,21 @@ public class InventoryService {
         return findBySku(sku);
     }
 
-    // Day 3: called synchronously by order-service over Feign (saga step 3)
+    // Day 3: called synchronously by order-service over Feign (saga step 3) —
+    // kural aggregate'te: yetersiz stokta InsufficientStockException
     @Transactional
     public StockItem reserve(String sku, int quantity) {
         StockItem item = findBySku(sku);
-        if (item.getQuantity() < quantity) {
-            throw new InsufficientStockException(sku);
-        }
-        item.setQuantity(item.getQuantity() - quantity);
-        return item;
+        item.reserve(quantity);
+        return stockItemRepository.save(item);
     }
 
     // Day 4: saga compensation — order-service releases stock when payment fails
     @Transactional
     public StockItem release(String sku, int quantity) {
         StockItem item = findBySku(sku);
-        item.setQuantity(item.getQuantity() + quantity);
-        return item;
+        item.release(quantity);
+        return stockItemRepository.save(item);
     }
 
     private StockItem findBySku(String sku) {

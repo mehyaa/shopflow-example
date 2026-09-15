@@ -4,6 +4,8 @@
 
 ShopFlow is an end-to-end e-commerce microservices platform built with Java 21, Spring Boot 4.1, and Spring Cloud 2025.1.3: eight services, an orchestrated saga with compensation, a transactional outbox, JWT security via Keycloak, and a full OpenTelemetry observability pipeline.
 
+The domain model follows tactical DDD: each service owns a pure `domain` package (aggregates with rule-enforcing behavior methods — no setters — plus record value objects like `Money`/`OrderId`/`OrderItem` and repository interfaces). `infra` maps those aggregates to JPA (`*Jpa` entities + `*Mapper` + `@Repository` adapters). `app` services orchestrate only. Database note: the `orders` aggregate persists its items as an `order_items` element collection (schema changed from the earlier `order_lines` table — recreate the volume: `docker compose down -v && docker compose up`).
+
 The architectural contract (services, ports, REST API, events, saga flow) lives in [**SPEC.md**](SPEC.md) — it is the single source of truth for the codebase.
 
 ## Tech Stack

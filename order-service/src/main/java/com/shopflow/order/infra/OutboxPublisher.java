@@ -1,8 +1,6 @@
 package com.shopflow.order.infra;
 
 import com.shopflow.common.events.EventTopics;
-import com.shopflow.order.domain.OutboxMessage;
-import com.shopflow.order.domain.OutboxStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;

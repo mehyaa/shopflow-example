@@ -1,48 +1,60 @@
 package com.shopflow.payment.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-// Day 4: payment record kept by the stub
-@Entity
-@Table(name = "payments")
+// Day 4: Payment aggregate root — status transitions go through rule-
+// enforcing behavior methods; no setters.
 public class Payment {
 
-    @Id
-    @Column(name = "payment_id")
-    private UUID paymentId;
-
-    @Column(name = "order_id", nullable = false)
-    private UUID orderId;
-
-    @Column(nullable = false, precision = 19, scale = 2)
-    private BigDecimal amount;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
+    private final UUID paymentId;
+    private final UUID orderId;
+    private final Money amount;
     private PaymentStatus status;
+    private final Instant createdAt;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    protected Payment() {
-        // required by JPA
-    }
-
-    public Payment(UUID orderId, BigDecimal amount, PaymentStatus status) {
-        this.paymentId = UUID.randomUUID();
+    Payment(UUID paymentId, UUID orderId, Money amount, PaymentStatus status, Instant createdAt) {
+        this.paymentId = paymentId;
         this.orderId = orderId;
         this.amount = amount;
         this.status = status;
-        this.createdAt = Instant.now();
+        this.createdAt = createdAt;
+    }
+
+    // The aggregate is born — factory method
+    public static Payment create(UUID orderId, Money amount) {
+        if (orderId == null) {
+            throw new IllegalArgumentException("orderId is required");
+        }
+        if (amount == null) {
+            throw new IllegalArgumentException("amount is required");
+        }
+        return new Payment(UUID.randomUUID(), orderId, amount, PaymentStatus.PENDING, Instant.now());
+    }
+
+    // Rehydration from persistence — mapper only
+    public static Payment reconstitute(UUID paymentId, UUID orderId, Money amount,
+                                       PaymentStatus status, Instant createdAt) {
+        return new Payment(paymentId, orderId, amount, status, createdAt);
+    }
+
+    // Payment approved — only from PENDING
+    public void markCompleted() {
+        ensureStatus(PaymentStatus.PENDING, "complete");
+        this.status = PaymentStatus.COMPLETED;
+    }
+
+    // Payment declined — reason is not aggregate state, it goes to the event payload
+    public void markFailed(String reason) {
+        ensureStatus(PaymentStatus.PENDING, "fail");
+        this.status = PaymentStatus.FAILED;
+    }
+
+    private void ensureStatus(PaymentStatus expected, String action) {
+        if (status != expected) {
+            throw new IllegalStateException("payment cannot be " + action + " in state " + status);
+        }
     }
 
     public UUID getPaymentId() {
@@ -53,7 +65,7 @@ public class Payment {
         return orderId;
     }
 
-    public BigDecimal getAmount() {
+    public Money getAmount() {
         return amount;
     }
 

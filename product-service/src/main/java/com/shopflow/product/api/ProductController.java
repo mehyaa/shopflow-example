@@ -3,7 +3,6 @@ package com.shopflow.product.api;
 import com.shopflow.product.api.dto.ProductRequest;
 import com.shopflow.product.api.dto.ProductResponse;
 import com.shopflow.product.app.ProductService;
-import com.shopflow.product.domain.Product;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,7 +39,7 @@ public class ProductController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ProductResponse create(@Valid @RequestBody ProductRequest request) {
-        Product product = new Product(request.sku(), request.name(), request.price(), request.description());
-        return ProductResponse.from(productService.create(product));
+        // DTO in, DTO out — the domain never leaks into the api layer
+        return ProductResponse.from(productService.create(request));
     }
 }

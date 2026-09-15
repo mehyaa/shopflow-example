@@ -1,12 +1,16 @@
 package com.shopflow.product.app;
 
+import com.shopflow.product.api.dto.ProductRequest;
+import com.shopflow.product.domain.Money;
 import com.shopflow.product.domain.Product;
-import com.shopflow.product.infra.ProductRepository;
+import com.shopflow.product.domain.ProductRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+// Application service: orchestration only (transaction, repo calls, SKU uniqueness
+// check); business rules live in the aggregate.
 @Service
 public class ProductService {
 
@@ -33,10 +37,13 @@ public class ProductService {
     }
 
     @Transactional
-    public Product create(Product product) {
-        if (productRepository.existsBySku(product.getSku())) {
-            throw new IllegalArgumentException("SKU already exists: " + product.getSku());
+    public Product create(ProductRequest request) {
+        if (productRepository.existsBySku(request.sku())) {
+            throw new IllegalArgumentException("SKU already exists: " + request.sku());
         }
+        // DTO → domain: the client never sees the domain's inside
+        Product product = Product.create(request.sku(), request.name(),
+                new Money(request.price()), request.description());
         return productRepository.save(product);
     }
 }

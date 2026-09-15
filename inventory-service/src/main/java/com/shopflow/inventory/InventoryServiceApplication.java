@@ -19,9 +19,9 @@ public class InventoryServiceApplication {
     CommandLineRunner seedStock(InventoryService inventoryService) {
         return args -> {
             if (inventoryService.count() == 0) {
-                inventoryService.create(new StockItem("TSHIRT-001", 100));
-                inventoryService.create(new StockItem("MUG-002", 50));
-                inventoryService.create(new StockItem("POSTER-003", 0));
+                inventoryService.create(StockItem.create("TSHIRT-001", 100));
+                inventoryService.create(StockItem.create("MUG-002", 50));
+                inventoryService.create(StockItem.create("POSTER-003", 0));
             }
         };
     }

@@ -1,7 +1,5 @@
 package com.shopflow.order.infra;
 
-import com.shopflow.order.domain.OutboxMessage;
-import com.shopflow.order.domain.OutboxStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

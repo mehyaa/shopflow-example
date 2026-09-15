@@ -3,6 +3,7 @@ package com.shopflow.payment.api;
 import com.shopflow.payment.api.dto.PaymentRequest;
 import com.shopflow.payment.api.dto.PaymentResponse;
 import com.shopflow.payment.app.PaymentService;
+import com.shopflow.payment.domain.Money;
 import com.shopflow.payment.domain.Payment;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,7 +25,8 @@ public class PaymentController {
 
     @PostMapping
     public PaymentResponse pay(@Valid @RequestBody PaymentRequest request) {
-        Payment payment = paymentService.pay(request.orderId(), request.amount());
+        // DTO → domain: BigDecimal in the DTO, Money in the aggregate
+        Payment payment = paymentService.pay(request.orderId(), new Money(request.amount()));
         return new PaymentResponse(payment.getPaymentId(), payment.getOrderId(), payment.getStatus().name());
     }
 }

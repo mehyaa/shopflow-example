@@ -1,7 +1,7 @@
 package com.shopflow.notification.app;
 
+import com.shopflow.notification.domain.NotificationRepository;
 import com.shopflow.notification.domain.ReceivedNotification;
-import com.shopflow.notification.infra.NotificationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 
+// Application service: orchestration only; validation lives in the aggregate (receive factory)
 @Service
 public class NotificationService {
 
@@ -23,7 +24,7 @@ public class NotificationService {
 
     @Transactional
     public void record(String routingKey, String payload) {
-        notificationRepository.save(new ReceivedNotification(routingKey, payload, Instant.now()));
+        notificationRepository.save(ReceivedNotification.receive(routingKey, payload, Instant.now()));
         log.info("Event received [{}]: {}", routingKey, payload);
     }
 

@@ -1,6 +1,6 @@
 package com.shopflow.inventory.infra;
 
-import com.shopflow.inventory.app.InsufficientStockException;
+import com.shopflow.inventory.domain.InsufficientStockException;
 import com.shopflow.inventory.app.StockItemNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;

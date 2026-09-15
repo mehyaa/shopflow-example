@@ -125,11 +125,12 @@ A `@Scheduled(fixedDelay=500)` poller publishes `NEW` rows and marks them `SENT`
 ## 10. Code Standards
 
 - Package root: `com.shopflow.<service>` (e.g. `com.shopflow.product`), shared events in `com.shopflow.common.events`.
-- Layers: `api` (controller/DTO), `domain` (entity/value object), `app` (service), `infra` (repo/config/mq).
+- Layers: `api` (controller/DTO), `domain` (aggregate/value object/repository interface), `app` (service), `infra` (repo/config/mq).
+- **Tactical DDD:** domain packages are plain Java — no Spring or JPA imports. Aggregates carry their rules (no setters; behavior methods only, e.g. `Order.confirm()`, `StockItem.reserve()`); VOs are records (`Money`, `OrderId`, `OrderItem`). Repositories are interfaces in `domain`, implemented by `infra` as JPA entities + `*Jpa` + `*Mapper` + `@Repository` adapter. `app` holds no business rules — orchestration only.
 - **No Lombok** (no extra IDE dependency); records + classic getters are used.
 - All code in English; short in-class English comments (`// Day 4: this is the outbox poller...`) are welcome.
 - Error responses: Spring `ProblemDetail` (RFC 7807).
-- Tests: minimal — one `@SpringBootTest` context-load test per business service (compile/run verification).
+- Tests: minimal — one `@SpringBootTest` context-load test per business service (compile/run verification) plus pure domain unit tests (aggregate rules, VOs).
 
 ## 11. Observability — OTel Pipeline
 
