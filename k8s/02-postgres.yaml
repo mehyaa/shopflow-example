@@ -50,6 +50,8 @@ spec:
               value: shopflow
             - name: POSTGRES_PASSWORD
               value: shopflow
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           ports:
             - containerPort: 5432
           volumeMounts:
