@@ -24,14 +24,14 @@
     {
       "clientId": "shopflow-gateway",
       "name": "ShopFlow Gateway",
-      "description": "Public browser client used by the API gateway / SPA (PKCE)",
+      "description": "Public browser client (PKCE); direct access grants enabled for the classroom password-grant demos (icerik/08 §8.1)",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
       "bearerOnly": false,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
       "fullScopeAllowed": true,
       "attributes": {

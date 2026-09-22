@@ -5,11 +5,13 @@ import com.shopflow.product.api.dto.ProductRequest;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
 
 import java.math.BigDecimal;
 
 @SpringBootApplication
+@EnableFeignClients
 public class ProductServiceApplication {
 
     public static void main(String[] args) {

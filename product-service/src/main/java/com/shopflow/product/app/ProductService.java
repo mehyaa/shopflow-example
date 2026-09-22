@@ -4,6 +4,7 @@ import com.shopflow.product.api.dto.ProductRequest;
 import com.shopflow.product.domain.Money;
 import com.shopflow.product.domain.Product;
 import com.shopflow.product.domain.ProductRepository;
+import com.shopflow.product.infra.InventoryClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +16,11 @@ import java.util.List;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final InventoryClient inventoryClient;
 
-    public ProductService(ProductRepository productRepository) {
+    public ProductService(ProductRepository productRepository, InventoryClient inventoryClient) {
         this.productRepository = productRepository;
+        this.inventoryClient = inventoryClient;
     }
 
     @Transactional(readOnly = true)
@@ -45,5 +48,10 @@ public class ProductService {
         Product product = Product.create(request.sku(), request.name(),
                 new Money(request.price()), request.description());
         return productRepository.save(product);
+    }
+
+    // Day 3: first inter-service sync chain — product → Feign → inventory
+    public InventoryClient.StockResponse checkStock(String sku) {
+        return inventoryClient.getStatus(sku);
     }
 }

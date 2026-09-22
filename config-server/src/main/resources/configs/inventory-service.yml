@@ -1,3 +1,10 @@
 logging:
   level:
     com.shopflow.inventory: INFO
+
+# Day 3 refresh demo: flip free-shipping in this file, then POST /actuator/refresh
+# on inventory-service (or busrefresh on config-server) — FeatureFlagsController
+# picks up the new value without a restart (icerik/05 §3.5, §4.2)
+shopflow:
+  feature:
+    free-shipping: false

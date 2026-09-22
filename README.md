@@ -44,6 +44,8 @@ docker compose up -d --build
 # Keycloak:     http://localhost:8180  (admin/admin)
 # Zipkin UI:    http://localhost:9411
 # Metrics:      curl -s localhost:8889/metrics | grep -i http | head
+# Stock chain:  curl localhost:8080/api/products/TSHIRT-001/stock (Day 3)
+# Config flags: curl localhost:8080/api/inventory/flags (Day 3)
 ```
 
 ### Optional ELK profile (log collection)

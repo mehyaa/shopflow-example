@@ -37,15 +37,17 @@ All services serve REST without a context-path, under the `/api/...` prefix. Gat
 
 ### product-service
 ```
-GET    /api/products            → List<ProductResponse>
-GET    /api/products/{id}       → ProductResponse (404 → ProblemDetail)
-POST   /api/products            → 201 ProductResponse  {sku, name, price, description}
+GET    /api/products                → List<ProductResponse>
+GET    /api/products/{id}           → ProductResponse (404 → ProblemDetail)
+GET    /api/products/{sku}/stock    → {sku, available, quantity} (Day 3 Feign chain: product → inventory; FeignException → 500 ProblemDetail)
+POST   /api/products                → 201 ProductResponse  {sku, name, price, description}
 ```
 ProductResponse: `{id: Long, sku, name, price: BigDecimal, description}`
 
 ### inventory-service
 ```
 GET    /api/inventory/{sku}                      → {sku, available: boolean, quantity: int}
+GET    /api/inventory/flags                      → {"freeShipping": boolean} (Day 3 @RefreshScope config demo)
 POST   /api/inventory/{sku}/reserve              → 200 {sku, reservedQuantity: int}  {quantity: int}
 POST   /api/inventory/{sku}/release              → 200 {sku, releasedQuantity: int}  {quantity: int}
 ```
@@ -113,6 +115,8 @@ A `@Scheduled(fixedDelay=500)` poller publishes `NEW` rows and marks them `SENT`
 
 - `config-server`: `native` profile, `classpath:/configs/{application}` — native instead of git (offline and fast; in real life a git backend is the recommended choice).
 - Shared config file: `application.yml` (applied to all services) + per-service files.
+- `configs/inventory-service.yml` carries `shopflow.feature.free-shipping` — flipped live for the Day 3 refresh / Day 3 optional Cloud Bus demos (`GET /api/inventory/flags` shows the change without a restart).
+- `registry-fetch-interval-seconds: 5` on all Eureka clients (shared config) — classroom speed knob; keep the 30 s default in production.
 - `spring-cloud-starter-bus-amqp` on config-server; `/actuator/busrefresh` demo (optional, can be skipped).
 
 ## 9. Docker & Kubernetes

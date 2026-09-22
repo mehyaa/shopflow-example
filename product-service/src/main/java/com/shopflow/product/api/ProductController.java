@@ -3,6 +3,7 @@ package com.shopflow.product.api;
 import com.shopflow.product.api.dto.ProductRequest;
 import com.shopflow.product.api.dto.ProductResponse;
 import com.shopflow.product.app.ProductService;
+import com.shopflow.product.infra.InventoryClient;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +35,12 @@ public class ProductController {
     @GetMapping("/{id}")
     public ProductResponse findById(@PathVariable Long id) {
         return ProductResponse.from(productService.findById(id));
+    }
+
+    // Day 3: sync chain through the gateway — gateway → product → Feign → inventory
+    @GetMapping("/{sku}/stock")
+    public InventoryClient.StockResponse checkStock(@PathVariable String sku) {
+        return productService.checkStock(sku);
     }
 
     @PostMapping
