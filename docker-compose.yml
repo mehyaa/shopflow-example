@@ -445,5 +445,35 @@ services:
     depends_on:
       - logstash
 
+  # --- Metrics profile: Prometheus scrapes the collector's :8889 exporter and
+  # Grafana visualizes it (Gün 6 sabah demosu: docker compose --profile metrics up -d).
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: ["metrics"]
+    container_name: shopflow-prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:z
+    environment:
+      LOGSPOUT: ignore
+    ports:
+      - "9090:9090"   # Prometheus UI (demo: http://localhost:9090/targets)
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    profiles: ["metrics"]
+    container_name: shopflow-grafana
+    environment:
+      # Kimlik doğrulama eğitimde basit tutulur: admin/admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      LOGSPOUT: ignore
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:z
+      - ./docker/grafana/provisioning/dashboards/shopflow-otel.json:/var/lib/grafana/dashboards/shopflow-otel.json:z
+    ports:
+      - "3000:3000"   # Grafana UI (proxy: /proxy/3000/)
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:

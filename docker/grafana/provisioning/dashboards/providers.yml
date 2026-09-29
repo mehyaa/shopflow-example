@@ -1,0 +1,12 @@
+# Grafana dashboard provisioning (ShopFlow metrics profile).
+apiVersion: 1
+
+providers:
+  - name: shopflow
+    orgId: 1
+    folder: ShopFlow
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,10 @@
+# Prometheus scrape config (ShopFlow metrics profile).
+# Tek scrape hedefi: OTel collector'ın :8889 Prometheus-format exporter'ı.
+# Servis adları burada `job` etiketi olarak görünür (api-gateway, order-service ...).
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: shopflow
+    static_configs:
+      - targets: ["otel-collector:8889"]
