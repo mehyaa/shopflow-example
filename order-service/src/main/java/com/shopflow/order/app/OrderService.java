@@ -46,19 +46,32 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OutboxRepository outboxRepository;
     private final InventoryClient inventoryClient;
+    private final com.shopflow.order.infra.ProductClient productClient;
     private final PaymentInvoker paymentInvoker;
     private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
                         OutboxRepository outboxRepository,
                         InventoryClient inventoryClient,
+                        com.shopflow.order.infra.ProductClient productClient,
                         PaymentInvoker paymentInvoker,
                         ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.outboxRepository = outboxRepository;
         this.inventoryClient = inventoryClient;
+        this.productClient = productClient;
         this.paymentInvoker = paymentInvoker;
         this.objectMapper = objectMapper;
+    }
+
+    private java.math.BigDecimal lookupPrice(String sku) {
+        try {
+            com.shopflow.order.infra.ProductClient.PriceResponse p = productClient.getPrice(sku);
+            return p.price() != null ? p.price() : java.math.BigDecimal.ZERO;
+        } catch (RuntimeException ex) {
+            log.warn("Catalog price lookup failed for {}: {}", sku, ex.getMessage());
+            return java.math.BigDecimal.ZERO;
+        }
     }
 
     @Transactional
@@ -66,10 +79,10 @@ public class OrderService {
         // Step 1: the aggregate is born with its rules applied (Order.create)
         // and the OrderCreatedEvent is written to the outbox
         List<OrderItem> items = request.items().stream()
-                // Day 4: kept simple for the training — the request carries the unit price;
-                // a production flow would look the price up in product-service
+                // Day 4: the request may carry the unit price (training shortcut);
+                // when it does not, the catalog price is looked up in product-service.
                 .map(item -> new OrderItem(item.sku(), item.quantity(),
-                        new Money(item.unitPrice() != null ? item.unitPrice() : java.math.BigDecimal.ZERO)))
+                        new Money(item.unitPrice() != null ? item.unitPrice() : lookupPrice(item.sku()))))
                 .toList();
         Order order = Order.create(request.customerId(), items);
         orderRepository.save(order);

@@ -39,6 +39,12 @@ public class ProductService {
                 .orElseThrow(() -> new ProductNotFoundException(id));
     }
 
+    @Transactional(readOnly = true)
+    public Product findBySku(String sku) {
+        return productRepository.findBySku(sku)
+                .orElseThrow(() -> new ProductNotFoundException(sku));
+    }
+
     @Transactional
     public Product create(ProductRequest request) {
         if (productRepository.existsBySku(request.sku())) {

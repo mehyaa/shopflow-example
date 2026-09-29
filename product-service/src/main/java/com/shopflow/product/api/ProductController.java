@@ -37,6 +37,12 @@ public class ProductController {
         return ProductResponse.from(productService.findById(id));
     }
 
+    // Day 4+: saga fiyat zenginleştirme — order-service (Feign) SKU ile fiyat bakar
+    @GetMapping("/sku/{sku}")
+    public ProductResponse findBySku(@PathVariable String sku) {
+        return ProductResponse.from(productService.findBySku(sku));
+    }
+
     // Day 3: sync chain through the gateway — gateway → product → Feign → inventory
     @GetMapping("/{sku}/stock")
     public InventoryClient.StockResponse checkStock(@PathVariable String sku) {

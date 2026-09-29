@@ -55,7 +55,9 @@ Insufficient stock → 409 ProblemDetail `{detail: "Insufficient stock for SKU: 
 
 ### order-service
 ```
-POST   /api/orders            → 202 {orderId: UUID, status}  {customerId: UUID, items: [{sku, quantity}]}
+POST   /api/orders            → 202 {orderId: UUID, status}  {customerId: UUID, items: [{sku, quantity, unitPrice?}]}
+                              # unitPrice yoksa fiyat product-service'ten bakılır (order → product Feign);
+                              # katalogda ürün yoksa totalAmount 0.00 olur → payment 400 → saga compensation
 GET    /api/orders/{id}       → {orderId, customerId, status, items[], totalAmount, createdAt}
 GET    /api/orders            → List (CQRS read model — query view for the list endpoint)
 POST   /api/orders/{id}/cancel → 200 (saga compensation demo)

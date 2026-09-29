@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SpringDataProductJpa extends JpaRepository<ProductJpa, Long> {
 
     boolean existsBySku(String sku);
+
+    java.util.Optional<ProductJpa> findBySku(String sku);
 }

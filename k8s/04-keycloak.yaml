@@ -14,8 +14,16 @@ data:
       "loginWithEmailAllowed": true,
       "roles": {
         "realm": [
-          {"name": "customer", "description": "ShopFlow customer role", "composite": false},
-          {"name": "admin", "description": "ShopFlow admin role", "composite": false}
+          {
+            "name": "customer",
+            "description": "ShopFlow customer role",
+            "composite": false
+          },
+          {
+            "name": "admin",
+            "description": "ShopFlow admin role",
+            "composite": false
+          }
         ]
       },
       "groups": [],
@@ -23,24 +31,39 @@ data:
         {
           "clientId": "shopflow-gateway",
           "name": "ShopFlow Gateway",
-          "description": "Public browser client used by the API gateway / SPA (PKCE)",
+          "description": "Public browser client (PKCE); direct access grants enabled for the classroom password-grant demos (icerik/08 §8.1)",
           "enabled": true,
           "protocol": "openid-connect",
           "publicClient": true,
           "bearerOnly": false,
           "standardFlowEnabled": true,
           "implicitFlowEnabled": false,
-          "directAccessGrantsEnabled": false,
+          "directAccessGrantsEnabled": true,
           "serviceAccountsEnabled": false,
           "fullScopeAllowed": true,
           "attributes": {
             "pkce.code.challenge.method": "S256",
             "post.logout.redirect.uris": "http://localhost:8080/*##http://localhost:3000/*"
           },
-          "redirectUris": ["http://localhost:8080/*", "http://localhost:3000/*"],
-          "webOrigins": ["+"],
-          "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
-          "optionalClientScopes": ["address", "phone", "offline_access"]
+          "redirectUris": [
+            "http://localhost:8080/*",
+            "http://localhost:3000/*"
+          ],
+          "webOrigins": [
+            "+"
+          ],
+          "defaultClientScopes": [
+            "web-origins",
+            "acr",
+            "profile",
+            "roles",
+            "email"
+          ],
+          "optionalClientScopes": [
+            "address",
+            "phone",
+            "offline_access"
+          ]
         },
         {
           "clientId": "shopflow-backend",
@@ -56,10 +79,16 @@ data:
           "serviceAccountsEnabled": true,
           "fullScopeAllowed": true,
           "secret": "shopflow-backend-secret",
-          "attributes": {"client_credentials.use_refresh_token": "false"},
+          "attributes": {
+            "client_credentials.use_refresh_token": "false"
+          },
           "redirectUris": [],
           "webOrigins": [],
-          "defaultClientScopes": ["profile", "roles", "email"],
+          "defaultClientScopes": [
+            "profile",
+            "roles",
+            "email"
+          ],
           "optionalClientScopes": []
         }
       ],
@@ -71,8 +100,16 @@ data:
           "emailVerified": true,
           "firstName": "Alice",
           "lastName": "Customer",
-          "credentials": [{"type": "password", "value": "customer123", "temporary": false}],
-          "realmRoles": ["customer"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "customer123",
+              "temporary": false
+            }
+          ],
+          "realmRoles": [
+            "customer"
+          ]
         },
         {
           "username": "bob",
@@ -81,8 +118,16 @@ data:
           "emailVerified": true,
           "firstName": "Bob",
           "lastName": "Admin",
-          "credentials": [{"type": "password", "value": "admin123", "temporary": false}],
-          "realmRoles": ["admin"]
+          "credentials": [
+            {
+              "type": "password",
+              "value": "admin123",
+              "temporary": false
+            }
+          ],
+          "realmRoles": [
+            "admin"
+          ]
         }
       ]
     }
@@ -108,7 +153,9 @@ spec:
           imagePullPolicy: IfNotPresent
           # --health-enabled=true: the readiness/liveness probes below need the
           # health endpoints on the management port 9000
-          args: ["start-dev", "--import-realm", "--health-enabled=true"]
+          # --http-host=0.0.0.0: Keycloak 26.7 start-dev varsayılanı localhost-only'dır;
+          # pod dışından (port-forward + in-cluster JWKS) erişim için şart.
+          args: ["start-dev", "--import-realm", "--health-enabled=true", "--http-host=0.0.0.0"]
           env:
             - name: KEYCLOAK_ADMIN
               value: admin

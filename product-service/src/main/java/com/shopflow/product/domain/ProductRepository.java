@@ -15,4 +15,6 @@ public interface ProductRepository {
     long count();
 
     boolean existsBySku(String sku);
+
+    Optional<Product> findBySku(String sku);
 }

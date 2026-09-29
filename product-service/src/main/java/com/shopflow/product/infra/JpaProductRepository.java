@@ -44,4 +44,9 @@ public class JpaProductRepository implements ProductRepository {
     public boolean existsBySku(String sku) {
         return springDataProductJpa.existsBySku(sku);
     }
+
+    @Override
+    public Optional<Product> findBySku(String sku) {
+        return springDataProductJpa.findBySku(sku).map(ProductMapper::toDomain);
+    }
 }
